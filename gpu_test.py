@@ -1,12 +1,8 @@
 import torch
 
-device = torch.device("cuda")
+print("PyTorch :", torch.__version__)
+print("CUDA disponible", torch.cuda.is_available())
 
-x = torch.rand(4000, 4000, device=device)
-y = torch.rand(4000, 4000, device=device)
-
-z = x @ y
-
-print("GPU :", torch.cuda.get_device_name(0))
-print("Calcul effectué sur :", z.device)
-print("Résultat :", z.mean().item())
+if torch.cuda.is_available():
+    print("GPU :", torch.cuda.get_device_name(0))
+    print("CUDA :", torch.version.cuda)
