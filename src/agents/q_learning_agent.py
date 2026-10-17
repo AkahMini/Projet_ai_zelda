@@ -260,6 +260,7 @@ if __name__ == "__main__":
         env,
         q_table,
         n_episodes=100,
+        seed=42,
     )
 
     print("\n=== Démonstration de l'agent entraîné ===")
