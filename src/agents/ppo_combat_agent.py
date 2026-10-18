@@ -27,7 +27,7 @@ def make_combat_env():
     )
 
 
-def train_ppo(total_timesteps=300_000, seed=42):
+def train_ppo(total_timesteps=300_000, seed=789):
     """Entraîne PPO à combattre un ennemi."""
 
     env = make_combat_env()
@@ -67,9 +67,11 @@ def evaluate_ppo(model, n_episodes=100, seed=1000):
     rewards = []
     episode_lengths = []
     successful_lengths = []
+    timeout_details = []
 
+    deaths = 0
+    timeouts = 0
     successes = 0
-    failures = 0
 
     for episode in range(n_episodes):
         observation, info = env.reset(seed=seed + episode)
@@ -99,13 +101,28 @@ def evaluate_ppo(model, n_episodes=100, seed=1000):
         if info["success"]:
             successes += 1
             successful_lengths.append(steps)
-        else:
-            failures += 1
+
+        elif info["player_hp"] <= 0:
+            deaths += 1
+
+        elif truncated:
+            timeouts += 1
+
+            timeout_details.append({
+                "episode": episode,
+                "player_pos": info["player_pos"],
+                "enemy_pos": info["enemy_pos"],
+                "distance": info["distance"],
+                "player_hp": info["player_hp"],
+                "enemy_hp": info["enemy_hp"],
+                "steps": steps,
+            })
 
     print("\n=== Résultats PPO Combat ===")
     print(f"Épisodes : {n_episodes}")
     print(f"Taux de victoire : {successes / n_episodes:.1%}")
-    print(f"Combats non gagnés : {failures}")
+    print(f"Morts de Link : {deaths}")
+    print(f"Limites de temps atteintes : {timeouts}")
     print(f"Récompense moyenne : {np.mean(rewards):.3f}")
     print(f"Actions moyennes : {np.mean(episode_lengths):.2f}")
 
@@ -115,13 +132,26 @@ def evaluate_ppo(model, n_episodes=100, seed=1000):
             f"{np.mean(successful_lengths):.2f}"
         )
 
+    print("\n=== Analyse des timeouts ===")
+
+    for result in timeout_details[:10]:
+        print(
+            f"Épisode {result['episode']} | "
+            f"Link {result['player_pos']} | "
+            f"Ennemi {result['enemy_pos']} | "
+            f"Distance {result['distance']} | "
+            f"PV Link {result['player_hp']} | "
+            f"PV ennemi {result['enemy_hp']} | "
+            f"Actions {result['steps']}"
+        )
+
     env.close()
 
 
 if __name__ == "__main__":
     model = train_ppo(
         total_timesteps=300_000,
-        seed=42,
+        seed=789,
     )
 
     evaluate_ppo(

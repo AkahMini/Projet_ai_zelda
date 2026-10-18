@@ -277,6 +277,8 @@ class ZeldaCombatEnv(gym.Env):
             "distance": self._distance(),
             "steps": self.steps,
             "success": success,
+            "player_pos": tuple(int(v) for v in self.player_pos),
+            "enemy_pos": tuple(int(v) for v in self.enemy_pos),
         }
 
         return observation, float(reward), terminated, truncated, info
