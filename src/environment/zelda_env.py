@@ -8,7 +8,7 @@ class ZeldaEnv(gym.Env):
 
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, grid_size=5, max_steps=50, render_mode=None):
+    def __init__(self, grid_size=8, max_steps=50, render_mode=None):
         super().__init__()
 
         if grid_size < 2:
@@ -21,6 +21,24 @@ class ZeldaEnv(gym.Env):
             raise ValueError("render_mode doit être None ou 'human'.")
 
         self.grid_size = grid_size
+        # Obstacles fixes : coordonnées (x, y)
+        self.obstacles = {
+            (3, 0),
+            (4, 0),
+            (3, 1),
+            (3, 2),
+            (4, 2),
+            (5, 2),
+            (3, 3),
+            (3, 4),
+            (4, 4),
+            (3, 5),
+            (4, 5),
+            (3, 6),
+            (4, 6),
+            (5, 6),
+        }
+
         self.max_steps = max_steps
         self.render_mode = render_mode
 
@@ -74,7 +92,15 @@ class ZeldaEnv(gym.Env):
                 dtype=np.int32,
             )
 
-            if not np.array_equal(self.player_pos, self.target_pos):
+            target_cell = (
+                int(self.target_pos[0]),
+                int(self.target_pos[1]),
+            )
+
+            if (
+                not np.array_equal(self.player_pos, self.target_pos)
+                and target_cell not in self.obstacles
+            ):
                 break
 
         self.steps = 0
@@ -92,11 +118,23 @@ class ZeldaEnv(gym.Env):
 
         # Déplacement du joueur.
         delta = self.action_deltas[int(action)]
-        self.player_pos = np.clip(
+
+        # Position possible après le déplacement.
+        candidate_pos = np.clip(
             self.player_pos + delta,
             0,
             self.grid_size - 1,
         ).astype(np.int32)
+
+        # Conversion en tuple pour vérifier les obstacles.
+        candidate_cell = (
+            int(candidate_pos[0]),
+            int(candidate_pos[1]),
+        )
+
+        # Le joueur ne se déplace que si la case est libre.
+        if candidate_cell not in self.obstacles:
+            self.player_pos = candidate_pos
 
         self.steps += 1
 
@@ -139,14 +177,18 @@ class ZeldaEnv(gym.Env):
             row = []
 
             for x in range(self.grid_size):
+                cell = (x, y)
+
                 if np.array_equal(self.player_pos, [x, y]):
                     row.append("P")
                 elif np.array_equal(self.target_pos, [x, y]):
                     row.append("T")
+                elif cell in self.obstacles:
+                    row.append("#")
                 else:
                     row.append(".")
 
             rows.append(" ".join(row))
 
         print("\n".join(rows))
-        print("P = joueur | T = cible\n")
+        print("P = joueur | T = cible | # = obstacle\n")

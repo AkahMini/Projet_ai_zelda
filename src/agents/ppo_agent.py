@@ -6,13 +6,8 @@ from stable_baselines3 import PPO
 from src.environment.zelda_env import ZeldaEnv
 
 
-def train_ppo(total_timesteps=50_000, seed=42):
+def train_ppo(env, total_timesteps=50_000, seed=123):
     """Entraîne un agent PPO sur notre environnement."""
-
-    env = ZeldaEnv(
-        grid_size=5,
-        max_steps=50,
-    )
 
     # Création de l'agent PPO.
     model = PPO(
@@ -47,29 +42,23 @@ def train_ppo(total_timesteps=50_000, seed=42):
     return model
 
 
-def evaluate_ppo(model, n_episodes=100, seed=42):
-    """Évalue l'agent PPO après son entraînement."""
-
-    env = ZeldaEnv(
-        grid_size=5,
-        max_steps=50,
-    )
+def evaluate_ppo(model, env, n_episodes=100, seed=123):
+    """Évalue l'agent PPO sur plusieurs épisodes."""
 
     rewards = []
     episode_lengths = []
+    successful_lengths = []
+
     successes = 0
+    failures = 0
 
     for episode in range(n_episodes):
-
-        # Chaque épisode reçoit une graine déterminée.
         observation, info = env.reset(seed=seed + episode)
 
         total_reward = 0.0
         steps = 0
 
         while True:
-
-            # En évaluation, on choisit l'action la plus probable.
             action, _ = model.predict(
                 observation,
                 deterministic=True,
@@ -90,33 +79,62 @@ def evaluate_ppo(model, n_episodes=100, seed=42):
 
         if terminated:
             successes += 1
+            successful_lengths.append(steps)
+        else:
+            failures += 1
 
-    env.close()
+    success_rate = successes / n_episodes
 
     print("\n=== Résultats de l'agent PPO ===")
     print(f"Nombre d'épisodes : {n_episodes}")
-    print(f"Taux de réussite : {successes / n_episodes:.1%}")
+    print(f"Taux de réussite : {success_rate:.1%}")
+    print(f"Épisodes sans réussite : {failures}")
     print(f"Récompense moyenne : {np.mean(rewards):.3f}")
-    print(f"Nombre moyen de pas : {np.mean(episode_lengths):.2f}")
+
+    print(
+        f"Pas moyens (tous les épisodes) : "
+        f"{np.mean(episode_lengths):.2f}"
+    )
+
+    if successful_lengths:
+        print(
+            f"Pas moyens (réussites uniquement) : "
+            f"{np.mean(successful_lengths):.2f}"
+        )
+    else:
+        print("Aucune réussite : moyenne des pas réussis indisponible.")
 
     return {
-        "success_rate": successes / n_episodes,
+        "success_rate": success_rate,
         "mean_reward": float(np.mean(rewards)),
         "mean_steps": float(np.mean(episode_lengths)),
+        "mean_success_steps": (
+            float(np.mean(successful_lengths))
+            if successful_lengths else None
+        ),
+        "failures": failures,
     }
 
 
 if __name__ == "__main__":
 
-    # 1. Entraîner l'agent.
-    model = train_ppo(
-        total_timesteps=50_000,
-        seed=42,
+    eval_env = ZeldaEnv(
+        grid_size=8,
+        max_steps=50,
     )
 
-    # 2. Évaluer le modèle entraîné.
+    # 1. Entraîner l'agent.
+    model = train_ppo(
+        env=eval_env,
+        total_timesteps=250_000,
+        seed=789
+    )
+
     evaluate_ppo(
         model,
+        eval_env,
         n_episodes=100,
-        seed=42,
+        seed=1000,
     )
+
+    eval_env.close()

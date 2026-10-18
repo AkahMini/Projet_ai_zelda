@@ -12,7 +12,7 @@ def main():
 
     # 2. Tester des actions aléatoires et afficher la grille.
     env = ZeldaEnv(
-        grid_size=5,
+        grid_size=8,
         max_steps=20,
         render_mode="human",
     )

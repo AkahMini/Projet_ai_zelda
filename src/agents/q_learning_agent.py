@@ -32,7 +32,7 @@ def train_q_learning(
     epsilon_start=1.0,
     epsilon_min=0.05,
     epsilon_decay=0.9995,
-    seed=42,
+    seed=123,
 ):
     """
     Entraîne un agent avec Q-learning tabulaire.
@@ -213,12 +213,15 @@ def play_episode(env, q_table, seed=None, render=False):
     return total_reward, steps, terminated
 
 
-def evaluate_q_agent(env, q_table, n_episodes=100, seed=10_000):
-    """Évalue l'agent entraîné sur plusieurs épisodes."""
+def evaluate_q_agent(env, q_table, n_episodes=100, seed=123):
+    """Évalue l'agent Q-learning sur plusieurs épisodes."""
 
     rewards = []
     episode_lengths = []
+    successful_lengths = []
+
     successes = 0
+    failures = 0
 
     for episode in range(n_episodes):
         reward, steps, terminated = play_episode(
@@ -229,54 +232,65 @@ def evaluate_q_agent(env, q_table, n_episodes=100, seed=10_000):
 
         rewards.append(reward)
         episode_lengths.append(steps)
-        successes += int(terminated)
+
+        if terminated:
+            successes += 1
+            successful_lengths.append(steps)
+        else:
+            failures += 1
+
+    success_rate = successes / n_episodes
 
     print("\n=== Résultats de l'agent Q-learning ===")
     print(f"Nombre d'épisodes : {n_episodes}")
-    print(f"Taux de réussite : {successes / n_episodes:.1%}")
+    print(f"Taux de réussite : {success_rate:.1%}")
+    print(f"Épisodes sans réussite : {failures}")
     print(f"Récompense moyenne : {np.mean(rewards):.3f}")
-    print(f"Nombre moyen de pas : {np.mean(episode_lengths):.2f}")
+
+    print(
+        f"Pas moyens (tous les épisodes) : "
+        f"{np.mean(episode_lengths):.2f}"
+    )
+
+    if successful_lengths:
+        print(
+            f"Pas moyens (réussites uniquement) : "
+            f"{np.mean(successful_lengths):.2f}"
+        )
+    else:
+        print("Aucune réussite : moyenne des pas réussis indisponible.")
 
     return {
-        "success_rate": successes / n_episodes,
+        "success_rate": success_rate,
         "mean_reward": float(np.mean(rewards)),
         "mean_steps": float(np.mean(episode_lengths)),
+        "mean_success_steps": (
+            float(np.mean(successful_lengths))
+            if successful_lengths else None
+        ),
+        "failures": failures,
     }
 
 
 if __name__ == "__main__":
 
-    env = ZeldaEnv(
-        grid_size=5,
-        max_steps=50,
-    )
+    eval_env = ZeldaEnv(
+    grid_size=8,
+    max_steps=50,
+)
 
     q_table, history = train_q_learning(
-        env,
+        eval_env,
         n_episodes=10_000,
+        seed=789
     )
 
     evaluate_q_agent(
-        env,
+        eval_env,
         q_table,
         n_episodes=100,
-        seed=42,
+        seed=1000,
     )
 
-    print("\n=== Démonstration de l'agent entraîné ===")
 
-    demo_env = ZeldaEnv(
-        grid_size=5,
-        max_steps=50,
-        render_mode="human",
-    )
-
-    play_episode(
-        demo_env,
-        q_table,
-        seed=123,
-        render=True,
-    )
-
-    env.close()
-    demo_env.close()
+    eval_env.close()

@@ -40,7 +40,7 @@ def play_episode(env, seed=None, render=False):
     return total_reward, steps, terminated
 
 
-def evaluate_random_agent(n_episodes=100):
+def evaluate_random_agent(n_episodes=1000):
     """Évalue l'agent aléatoire sur plusieurs épisodes."""
 
     env = ZeldaEnv(grid_size=5, max_steps=50)
