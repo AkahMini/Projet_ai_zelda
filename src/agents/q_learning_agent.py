@@ -282,14 +282,14 @@ if __name__ == "__main__":
     q_table, history = train_q_learning(
         eval_env,
         n_episodes=10_000,
-        seed=789
+        seed=42
     )
 
     evaluate_q_agent(
         eval_env,
         q_table,
         n_episodes=100,
-        seed=1000,
+        seed=42,
     )
 
 

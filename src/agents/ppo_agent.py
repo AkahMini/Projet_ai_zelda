@@ -127,14 +127,14 @@ if __name__ == "__main__":
     model = train_ppo(
         env=eval_env,
         total_timesteps=250_000,
-        seed=789
+        seed=42
     )
 
     evaluate_ppo(
         model,
         eval_env,
         n_episodes=100,
-        seed=1000,
+        seed=42,
     )
 
     eval_env.close()

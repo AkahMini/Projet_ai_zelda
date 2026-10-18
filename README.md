@@ -129,9 +129,9 @@ Projet_ai_zelda/
 
 - [x] **[1]** Configuration
 - [x] **[2]** Premier environnement Gymnasium
-- [ ] **[3]** Agent capable d'atteindre une cible / Déplacement
-- [ ] **[4]** Ajout d'obstacles
-- [ ] **[5]** Ajout d'un ennemi
+- [x] **[3]** Agent capable d'atteindre une cible / Déplacement
+- [x] **[4]** Ajout d'obstacles
+- [x] **[5]** Ajout d'un ennemi
 - [ ] **[6]** Système de combat
 - [ ] **[7]** Entraînement avec PPO / Expérimentation avec DQN
 - [ ] **[8]** Utilisation d'observations visuelles (perception visuelle)
