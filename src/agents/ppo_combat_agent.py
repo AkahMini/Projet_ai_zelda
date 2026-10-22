@@ -151,7 +151,7 @@ def evaluate_ppo(model, n_episodes=100, seed=1000):
 if __name__ == "__main__":
     model = train_ppo(
         total_timesteps=300_000,
-        seed=789,
+        seed=1000,
     )
 
     evaluate_ppo(

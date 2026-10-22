@@ -88,8 +88,45 @@ class ZeldaCombatEnv(gym.Env):
         self.steps = 0
 
     def _distance(self):
-        """Distance de Manhattan entre Link et l'ennemi."""
-        return int(np.abs(self.player_pos - self.enemy_pos).sum())
+        """Calcule la longueur du chemin le plus court vers l'ennemi,
+        en tenant compte des obstacles.
+        """
+        start = tuple(int(v) for v in self.player_pos)
+        goal = tuple(int(v) for v in self.enemy_pos)
+
+        if start == goal:
+            return 0
+
+        queue = deque([(start, 0)])
+        visited = {start}
+
+        while queue:
+            (x, y), distance = queue.popleft()
+
+            for delta in self.action_deltas.values():
+                nx = x + int(delta[0])
+                ny = y + int(delta[1])
+                cell = (nx, ny)
+
+                inside_grid = (
+                    0 <= nx < self.grid_size
+                    and 0 <= ny < self.grid_size
+                )
+
+                if (
+                    inside_grid
+                    and cell not in self.obstacles
+                    and cell not in visited
+                ):
+                    if cell == goal:
+                        return distance + 1
+
+                    visited.add(cell)
+                    queue.append((cell, distance + 1))
+
+        # Normalement impossible puisque l'ennemi est placé
+        # sur une case accessible depuis le départ.
+        return self.grid_size * self.grid_size
 
     def _get_obs(self):
         """Construit l'observation donnée à l'agent."""
@@ -215,14 +252,18 @@ class ZeldaCombatEnv(gym.Env):
             if (
                 candidate_cell not in self.obstacles
                 and not np.array_equal(candidate, self.enemy_pos)
+                and not np.array_equal(candidate, self.player_pos)
             ):
                 self.player_pos = candidate
+            else:
+                # Pénalité supplémentaire si le déplacement est impossible.
+                reward -= 0.05
 
         else:
             # Action 4 : attaquer.
             if self._distance() == 1:
                 self.enemy_hp -= 1
-                reward += 0.25
+                reward += 0.5
 
                 if self.enemy_hp == 0:
                     reward += 2.0
