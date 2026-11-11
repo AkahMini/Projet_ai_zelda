@@ -230,6 +230,9 @@ class ZeldaCombatEnv(gym.Env):
         old_distance = self._distance()
         reward = -0.01
 
+        # Lorsque Link est adjacent à l'ennemi, il doit privilégier l'attaque.
+        if self._is_adjacent() and action != 4:
+            reward -= 0.20
         # -------------------------
         # 1. Action de Link
         # -------------------------
@@ -261,7 +264,7 @@ class ZeldaCombatEnv(gym.Env):
 
         else:
             # Action 4 : attaquer.
-            if self._distance() == 1:
+            if self._is_adjacent():
                 self.enemy_hp -= 1
                 reward += 0.5
 
@@ -285,7 +288,7 @@ class ZeldaCombatEnv(gym.Env):
         if (
             action == 4
             and self.enemy_hp > 0
-            and self._distance() == 1
+            and self._is_adjacent()
         ):
             self.player_hp -= 1
             reward -= 0.25
@@ -352,3 +355,72 @@ class ZeldaCombatEnv(gym.Env):
             f"Ennemi : {self.enemy_hp}/{self.enemy_max_hp} PV"
         )
         print("P = joueur | E = ennemi | # = obstacle\n")
+
+    def _is_adjacent(self):
+        """Vérifie si l'ennemi est à une case de Link."""
+
+        distance = np.abs(
+            self.player_pos - self.enemy_pos
+        ).sum()
+
+        return distance == 1
+
+    def action_masks(self):
+        """
+        Retourne un masque booléen des actions autorisées.
+
+        True  = action autorisée
+        False = action interdite
+        """
+
+        # Cinq actions possibles.
+        masks = np.zeros(5, dtype=bool)
+
+        # Vérifier les quatre déplacements.
+        for action, delta in self.action_deltas.items():
+
+            candidate = self.player_pos + delta
+
+            x = int(candidate[0])
+            y = int(candidate[1])
+
+            candidate_cell = (x, y)
+
+            # Vérifier que la position est dans la grille.
+            inside_grid = (
+                0 <= x < self.grid_size
+                and 0 <= y < self.grid_size
+            )
+
+            # Vérifier que la case n'est pas un obstacle.
+            not_obstacle = candidate_cell not in self.obstacles
+
+            # Vérifier que la case n'est pas occupée par l'ennemi.
+            not_enemy = not np.array_equal(
+                candidate,
+                self.enemy_pos,
+            )
+
+            # Autoriser uniquement les déplacements possibles.
+            masks[action] = (
+                inside_grid
+                and not_obstacle
+                and not_enemy
+            )
+
+        # Autoriser l'attaque uniquement si l'ennemi est adjacent.
+        masks[4] = (
+            self.enemy_hp > 0
+            and self._is_adjacent()
+        )
+
+        # Un état sans aucune action autorisée signale un problème
+        # de configuration de la carte ou de l'environnement.
+        if not masks.any():
+            raise RuntimeError(
+                f"Aucune action possible : "
+                f"Link={self.player_pos}, "
+                f"Ennemi={self.enemy_pos}"
+            )
+
+        return masks
