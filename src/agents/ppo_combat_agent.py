@@ -28,7 +28,7 @@ def make_combat_env():
     )
 
 
-def train_ppo(total_timesteps=300_000, seed=789):
+def train_ppo(total_timesteps=300_000, seed=789, ent_coef=0.03):
     """Entraîne PPO à combattre un ennemi."""
 
     env = make_combat_env()
@@ -40,7 +40,7 @@ def train_ppo(total_timesteps=300_000, seed=789):
         n_steps=1024,
         batch_size=64,
         gamma=0.99,
-        ent_coef=0.01,
+        ent_coef=ent_coef,
         verbose=1,
         seed=seed,
         device="cpu",
@@ -96,6 +96,22 @@ def evaluate_ppo(model, n_episodes=100, seed=1000, deterministic=True):
             # Calcul du masque
             action_mask = env.action_masks()
 
+            # Examiner les probabilités attribuées aux actions
+            obs_tensor, _ = model.policy.obs_to_tensor(observation)
+
+            distribution = model.policy.get_distribution(
+                obs_tensor,
+                action_masks=action_mask
+            )
+
+            action_probs = (
+                distribution.distribution.probs
+                .detach()
+                .cpu()
+                .numpy()
+                .flatten()
+            )
+            
             # Prédiction de MaskablePPO
             action, _ = model.predict(
                 observation,
@@ -123,6 +139,7 @@ def evaluate_ppo(model, n_episodes=100, seed=1000, deterministic=True):
                 "enemy": enemy_before,
                 "distance_before": distance_before,
                 "mask": action_mask.tolist(),
+                "action_probs": action_probs.tolist(),
                 "action": action,
                 "reward": float(reward),
                 "player_after": player_after,
@@ -224,7 +241,12 @@ if __name__ == "__main__":
         3000,
         4000,
         5000,
-        6000
+        6000,
+        7000,
+        8000,
+        9000,
+        10000,
+        11000,
     ]
 
     for seed in evaluation_seeds:
