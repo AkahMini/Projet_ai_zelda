@@ -1,4 +1,4 @@
-from collections import deque
+from collections import Counter, deque
 
 import numpy as np
 import gymnasium as gym
@@ -217,7 +217,7 @@ class ZeldaCombatEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        """Exécute une action et calcule la récompense."""
+        """Exécute l'action de Link puis celle de l'ennemi."""
 
         if not self.action_space.contains(action):
             raise ValueError(f"Action invalide : {action}")
@@ -229,15 +229,16 @@ class ZeldaCombatEnv(gym.Env):
 
         old_distance = self._distance()
         reward = -0.01
+        # Vérifier si l'ennemi était déjà adjacent
+        # avant l'action de Link.
+        enemy_was_adjacent = self._is_adjacent()
 
-        # Lorsque Link est adjacent à l'ennemi, il doit privilégier l'attaque.
-        if self._is_adjacent() and action != 4:
-            reward -= 0.20
         # -------------------------
         # 1. Action de Link
         # -------------------------
 
         if action in self.action_deltas:
+
             delta = self.action_deltas[int(action)]
 
             candidate = np.clip(
@@ -251,50 +252,63 @@ class ZeldaCombatEnv(gym.Env):
                 int(candidate[1]),
             )
 
-            # On ne peut traverser ni un mur ni l'ennemi.
             if (
                 candidate_cell not in self.obstacles
                 and not np.array_equal(candidate, self.enemy_pos)
                 and not np.array_equal(candidate, self.player_pos)
             ):
                 self.player_pos = candidate
+
             else:
-                # Pénalité supplémentaire si le déplacement est impossible.
                 reward -= 0.05
 
         else:
-            # Action 4 : attaquer.
+            # Action 4 : attaque
             if self._is_adjacent():
+
                 self.enemy_hp -= 1
                 reward += 0.5
 
-                if self.enemy_hp == 0:
+                if self.enemy_hp <= 0:
                     reward += 2.0
+
             else:
-                # Une attaque hors de portée ne touche pas.
                 reward -= 0.05
 
-        # Récompenser le rapprochement de l'ennemi.
-        new_distance = self._distance()
-        reward += 0.05 * (old_distance - new_distance)
+        # Récompense uniquement le déplacement de Link
+        distance_after_link = self._distance()
+
+        reward += 0.05 * (
+            old_distance - distance_after_link
+        )
 
         # -------------------------
-        # 2. Riposte de l'ennemi
+        # 2. Action de l'ennemi
         # -------------------------
 
-        # L'ennemi riposte uniquement si Link l'a attaqué
-        # au corps-à-corps et qu'il est encore vivant.
+        enemy_moved = False
+        enemy_attacked = False
 
-        if (
-            action == 4
-            and self.enemy_hp > 0
-            and self._is_adjacent()
-        ):
-            self.player_hp -= 1
-            reward -= 0.25
+        if self.enemy_hp > 0 and self.player_hp > 0:
 
-            if self.player_hp == 0:
-                reward -= 2.0
+            # L'ennemi peut attaquer uniquement s'il
+            # était déjà adjacent avant l'action de Link
+            # et s'il est toujours adjacent après celle-ci.
+
+            if enemy_was_adjacent and self._is_adjacent():
+
+                self.player_hp -= 1
+                reward -= 0.25
+                enemy_attacked = True
+
+                if self.player_hp <= 0:
+                    reward -= 2.0
+
+            # Si l'ennemi n'est plus adjacent, il poursuit Link.
+            elif not self._is_adjacent():
+
+                enemy_moved = self._move_enemy_towards_player()
+
         # -------------------------
         # 3. Fin de l'épisode
         # -------------------------
@@ -321,12 +335,18 @@ class ZeldaCombatEnv(gym.Env):
             "distance": self._distance(),
             "steps": self.steps,
             "success": success,
-            "player_pos": tuple(int(v) for v in self.player_pos),
-            "enemy_pos": tuple(int(v) for v in self.enemy_pos),
+            "player_pos": tuple(
+                int(v) for v in self.player_pos
+            ),
+            "enemy_pos": tuple(
+                int(v) for v in self.enemy_pos
+            ),
+            "enemy_moved": enemy_moved,
+            "enemy_attacked": enemy_attacked,
         }
 
         return observation, float(reward), terminated, truncated, info
-
+    
     def render(self):
         """Affiche la grille et les PV dans le terminal."""
 
@@ -424,3 +444,76 @@ class ZeldaCombatEnv(gym.Env):
             )
 
         return masks
+
+    def _move_enemy_towards_player(self):
+        """Déplace l'ennemi d'une case vers Link en évitant les obstacles."""
+
+        # Position actuelle de l'ennemi et position de Link
+        start = tuple(int(v) for v in self.enemy_pos)
+        goal = tuple(int(v) for v in self.player_pos)
+
+        # Initialisation du BFS
+        queue = deque([start])
+        previous = {start: None}
+
+        # Recherche du chemin le plus court
+        while queue and goal not in previous:
+
+            current = queue.popleft()
+
+            # Examiner les quatre déplacements possibles
+            for delta in self.action_deltas.values():
+
+                next_cell = (
+                    current[0] + int(delta[0]),
+                    current[1] + int(delta[1])
+                )
+
+                x, y = next_cell
+
+                # Vérifier les limites de la grille
+                if not (0 <= x < self.grid_size
+                        and 0 <= y < self.grid_size):
+                    continue
+
+                # Éviter les obstacles
+                if next_cell in self.obstacles:
+                    continue
+
+                # Ne pas revisiter une case
+                if next_cell in previous:
+                    continue
+
+                previous[next_cell] = current
+                queue.append(next_cell)
+
+                if next_cell == goal:
+                    break
+
+        # Aucun chemin trouvé
+        if goal not in previous:
+            return False
+
+        # Reconstruire le chemin entre l'ennemi et Link
+        path = []
+        current = goal
+
+        while current is not None:
+            path.append(current)
+            current = previous[current]
+
+        path.reverse()
+
+        # Si Link est déjà adjacent, l'ennemi ne bouge pas
+        if len(path) <= 2:
+            return False
+
+        # Faire avancer l'ennemi d'une seule case
+        next_position = path[1]
+
+        self.enemy_pos = np.array(
+            next_position,
+            dtype=np.int32
+        )
+
+        return True
